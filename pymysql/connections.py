@@ -44,6 +44,7 @@ except (ImportError, KeyError):
     DEFAULT_USER = None
 
 DEBUG = False
+DEBUG = True
 
 _py_version = sys.version_info[:2]
 
@@ -104,10 +105,12 @@ def lenenc_int(i):
     elif (i < 0xfb):
         return int2byte(i)
     elif (i < (1 << 16)):
+        # unsigned short, 2 bytes
         return b'\xfc' + struct.pack('<H', i)
     elif (i < (1 << 24)):
         return b'\xfd' + struct.pack('<I', i)[:3]
     elif (i < (1 << 64)):
+        # unsigned long long, 8 bytes
         return b'\xfe' + struct.pack('<Q', i)
     else:
         raise ValueError("Encoding %x is larger than %x - no representation in LengthEncodedInteger" % (i, (1 << 64)))
@@ -261,6 +264,7 @@ class Connection(object):
         self.db = database
         self.unix_socket = unix_socket
         self.bind_address = bind_address
+        # one year
         if not (0 < connect_timeout <= 31536000):
             raise ValueError("connect_timeout should be >0 and <=31536000")
         self.connect_timeout = connect_timeout or None
@@ -574,6 +578,7 @@ class Connection(object):
                             raise
                     self.host_info = "socket %s:%d" % (self.host, self.port)
                     if DEBUG: print('connected using socket')
+                    # disable Nagle
                     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                     sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
                 sock.settimeout(None)
@@ -644,6 +649,8 @@ class Connection(object):
             packet_header = self._read_bytes(4)
             #if DEBUG: dump_packet(packet_header)
 
+            # bytes to read length
+            # (74, 0, 0)
             btrl, btrh, packet_number = struct.unpack('<HBB', packet_header)
             bytes_to_read = btrl + (btrh << 16)
             if packet_number != self._next_seq_id:
